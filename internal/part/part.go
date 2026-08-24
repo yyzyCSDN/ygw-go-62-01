@@ -6,7 +6,7 @@ import "time"
 func Prune(parts []*Partition, from, to time.Time) []*Partition {
 	kept := make([]*Partition, 0, len(parts))
 	for _, p := range parts {
-		if p.End.Before(from) || !p.Start.Before(to) {
+		if !Overlaps(p, from, to) {
 			continue
 		}
 		kept = append(kept, p)
