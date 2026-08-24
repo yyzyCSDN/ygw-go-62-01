@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>ColumnStore 查询控制台</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #1f2933; }
+    h1 { font-size: 20px; }
+    .card { border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    input, button { padding: 6px 10px; margin-right: 8px; }
+    table { border-collapse: collapse; margin-top: 12px; }
+    td, th { border: 1px solid #d9e2ec; padding: 6px 12px; }
+    pre { background: #f5f7fa; padding: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>ColumnStore 查询控制台</h1>
+  <div class="card">
+    <strong>健康状态</strong>
+    <pre id="health">加载中…</pre>
+    <button onclick="loadHealth()">刷新</button>
+  </div>
+  <div class="card">
+    <strong>分析查询</strong>
+    <div>
+      <label>表 <input id="table" value="events" size="10"></label>
+      <label>列 <input id="column" value="latency_ms" size="12"></label>
+      <label>从 <input id="from" value="2026-08-24T00:00:00Z" size="22"></label>
+      <label>到 <input id="to" value="2026-08-24T02:00:00Z" size="22"></label>
+      <label>最小阈值 <input id="min" placeholder="可选" size="8"></label>
+      <button onclick="runQuery()">查询</button>
+    </div>
+    <pre id="query"></pre>
+  </div>
+  <div class="card">
+    <strong>管理动作</strong>
+    <button onclick="runCompress()">压缩字典列</button>
+    <button onclick="runGC()">执行过期回收</button>
+    <pre id="action"></pre>
+  </div>
+  <script>
+    async function getJSON(url, options) {
+      const resp = await fetch(url, options);
+      const body = await resp.json();
+      if (!resp.ok) throw new Error(JSON.stringify(body));
+      return body;
+    }
+    async function loadHealth() {
+      try {
+        const data = await getJSON("/api/health");
+        document.getElementById("health").textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        document.getElementById("health").textContent = "失败: " + err.message;
+      }
+    }
+    async function runQuery() {
+      const params = new URLSearchParams({
+        table: document.getElementById("table").value,
+        column: document.getElementById("column").value,
+        from: document.getElementById("from").value,
+        to: document.getElementById("to").value
+      });
+      const min = document.getElementById("min").value;
+      if (min) params.set("min", min);
+      try {
+        const data = await getJSON("/api/query?" + params.toString());
+        document.getElementById("query").textContent = data.text;
+      } catch (err) {
+        document.getElementById("query").textContent = "失败: " + err.message;
+      }
+    }
+    async function runCompress() {
+      try {
+        const data = await getJSON("/api/compress", { method: "POST" });
+        document.getElementById("action").textContent = JSON.stringify(data);
+      } catch (err) {
+        document.getElementById("action").textContent = "失败: " + err.message;
+      }
+    }
+    async function runGC() {
+      try {
+        const data = await getJSON("/api/gc", { method: "POST" });
+        document.getElementById("action").textContent = JSON.stringify(data);
+      } catch (err) {
+        document.getElementById("action").textContent = "失败: " + err.message;
+      }
+    }
+    loadHealth();
+  </script>
+</body>
+</html>
