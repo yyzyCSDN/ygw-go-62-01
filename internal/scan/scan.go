@@ -33,13 +33,14 @@ func (r *Reader) Rows() ([]col.Value, error) {
 	return codec.DecodeRows(r.block.Payload)
 }
 
-// ScanChunked visits every row in chunks of the given size.
+// ScanChunked visits every row in chunks of the given size, including the
+// final partial chunk when the row count is not a multiple of the chunk size.
 func ScanChunked(rows []col.Value, chunk int, visit func([]col.Value)) int {
 	visited := 0
-	n := len(rows)
-	for start := 0; start+chunk <= n; start += chunk {
-		visit(rows[start : start+chunk])
-		visited += chunk
+	chunker := NewChunker(len(rows), chunk)
+	for start, end, ok := chunker.Next(); ok; start, end, ok = chunker.Next() {
+		visit(rows[start:end])
+		visited += end - start
 	}
 	return visited
 }

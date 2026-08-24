@@ -54,3 +54,34 @@ func TestScanChunkedDivisible(t *testing.T) {
 		t.Fatalf("expected 8 visited rows, got %d", visited)
 	}
 }
+
+func TestScanChunkedRemainder(t *testing.T) {
+	// 10 rows, chunk size 4: the final partial chunk (rows[8:10]) must be
+	// visited, not dropped.
+	rows := []col.Value{col.Int(1), col.Int(2), col.Int(3), col.Int(4), col.Int(5), col.Int(6), col.Int(7), col.Int(8), col.Int(9), col.Int(10)}
+	seen := make(map[int]bool, len(rows))
+	visited := ScanChunked(rows, 4, func(batch []col.Value) {
+		for _, v := range batch {
+			seen[int(v.Num)] = true
+		}
+	})
+	if visited != 10 {
+		t.Fatalf("expected 10 visited rows, got %d", visited)
+	}
+	for i := 1; i <= 10; i++ {
+		if !seen[i] {
+			t.Fatalf("row %d was not visited by the chunked scan", i)
+		}
+	}
+}
+
+func TestScanChunkedAggregatesRemainder(t *testing.T) {
+	// The whole-block aggregate must match a full scan even when the row
+	// count is not a multiple of the chunk size; the tail rows must fold in.
+	rows := []col.Value{col.Int(1), col.Int(2), col.Int(3), col.Int(4), col.Int(5), col.Int(6), col.Int(7), col.Int(8), col.Int(9), col.Int(10)}
+	acc := &Accumulator{}
+	ScanChunked(rows, 4, func(batch []col.Value) { acc.AddRows(batch) })
+	if acc.Count != 10 || acc.Sum != 55 || acc.Min != 1 || acc.Max != 10 {
+		t.Fatalf("aggregate lost tail rows: %+v", acc)
+	}
+}
