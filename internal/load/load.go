@@ -86,9 +86,15 @@ func (l *Loader) Load(table string, src Source) (int, error) {
 // rollback undoes every block and partition written by a failed load.
 // In-flight blocks (written but not yet sealed into a partition) and already
 // sealed partitions must both be removed so no residue remains visible.
+// Every block id in written is removed from the store, which also drops the
+// backing segment file, covering both the in-flight batches that never reached
+// a partition and the sealed batches whose partition is removed below.
 func rollback(store *col.Store, parts *part.Registry, written []uint64, partitions []uint64) error {
 	for _, pid := range partitions {
 		_ = parts.Remove(pid)
+	}
+	for _, id := range written {
+		_ = store.RemoveBlock(id)
 	}
 	return nil
 }

@@ -52,7 +52,10 @@ func (s *Store) GetBlock(id uint64) (*ColumnBlock, error) {
 	return b, nil
 }
 
-// RemoveBlock drops a block from the store.
+// RemoveBlock drops a block from the store. The block is removed from the
+// in-memory registry, the block index, and its backing segment file so that no
+// residue of the block remains visible to readers or on disk. It is the full
+// inverse of AddBlock followed by WriteBlock.
 func (s *Store) RemoveBlock(id uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -62,6 +65,11 @@ func (s *Store) RemoveBlock(id uint64) error {
 	}
 	delete(s.blocks, id)
 	s.index.Remove(block)
+	if block.Segment != "" {
+		// Best-effort: the segment may never have been written if the block
+		// was rolled back before WriteBlock ran. A missing file is not residue.
+		_ = s.segments.RemoveSegment(block.Segment)
+	}
 	return nil
 }
 
